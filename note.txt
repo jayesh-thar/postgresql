@@ -1,0 +1,1992 @@
+==================================================
+# PostgreSQL: 
+==================================================
+
+-----------------------------------
+psql -U postgres
+password: (PostgreSQL)
+-----------------------------------
+
+\l		list all databases
+\c dbname	connect to that database
+\dt		list tables in the current database
+\d tablename	describe a table (columns, types, constraints)
+\dn		list schemas
+\q		quit
+
+
+
+
+# DATATYPE: 
+
+Numeric: smallint, interger, bigint, numeric(10, 2), real, double precision.
+Auto-incremenet: serial, generated always as identity(modern standard way)
+text: char(2), varchar(225), text
+Boolean: Boolean(true, false, null)
+data & time: date, time, timestamp, timestamptz, interval
+id generated: uuid(128-bit unique id)
+
+# create table:
+
+CREATE TABLE table_name (
+	col_name datatype constrains,
+	col_name datatype constrains,
+	...
+);
+
+
+ex:
+
+CREATE TABLE students (
+    id          integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    full_name   varchar(80) NOT NULL,
+    age         smallint,
+    fees        numeric(8,2) DEFAULT 0,
+    is_active   boolean DEFAULT true,
+    joined_on   date,
+    created_at  timestamptz DEFAULT now()
+);
+
+
+OUTPUT:
+
+postgres-# \l
+                                                               List of databases
+      Name      |  Owner   | Encoding | Locale Provider |      Collate       |       Ctype        | Locale | ICU Rules |   Access privileges
+----------------+----------+----------+-----------------+--------------------+--------------------+--------+-----------+-----------------------
+ insta_practice | postgres | UTF8     | libc            | English_India.1252 | English_India.1252 |        |           |
+ postgres       | postgres | UTF8     | libc            | English_India.1252 | English_India.1252 |        |           |
+ template0      | postgres | UTF8     | libc            | English_India.1252 | English_India.1252 |        |           | =c/postgres          +
+                |          |          |                 |                    |                    |        |           | postgres=CTc/postgres
+ template1      | postgres | UTF8     | libc            | English_India.1252 | English_India.1252 |        |           | =c/postgres          +
+                |          |          |                 |                    |                    |        |           | postgres=CTc/postgres
+(4 rows)
+
+
+postgres-# \c insta_practice
+You are now connected to database "insta_practice" as user "postgres".
+insta_practice-# \d products
+                                   Table "public.products"
+   Column    |           Type           | Collation | Nullable |           Default
+-------------+--------------------------+-----------+----------+------------------------------
+ id          | integer                  |           | not null | generated always as identity
+ name        | character varying(100)   |           | not null |
+ price       | numeric(8,2)             |           | not null |
+ stock       | smallint                 |           |          | 0
+ rating      | numeric(2,1)             |           |          |
+ is_active   | boolean                  |           |          | true
+ launched_on | date                     |           |          |
+ created_at  | timestamp with time zone |           |          | now()
+Indexes:
+    "products_pkey" PRIMARY KEY, btree (id)
+
+
+------------------------
+# Serial vs identity (a common interview question):
+serial: it silently create a sequence behind it and u can insert your own id manually/by mistake also
+identity: modern and standard, protect id from manual inserts
+------------------------
+
+
+# DELETE vs TRUNCATE vs DROP:
+	                        Removes	            WHERE?	Table stays?	Identity counter
+DELETE FROM products	    chosen rows	        yes	    yes	            keeps counting
+TRUNCATE TABLE products	    all rows, fast	    no	    yes	            keeps counting, unless RESTART IDENTITY
+DROP TABLE products	        rows and the table	no	    no	            gone
+
+
+------------------------
+
+
+# ALTER TABLE: is a SQL command used to change the structure of an existing table without recreating the table.
+- used when add/drop constraint and add/rename/drop/alter column
+
+ALTER TABLE products 
+    ADD CONSTRAINT ck_product_price_negative CHECK(price>=0);
+
+- it will break for: INSERT INTO products (name, price) VALUES ('Bad Item', -5);
+
+
+alter table products 
+    add constraint ck_rating_range check(rating between 0 and 5);
+
+alter table products 
+    alter column stock set not null;
+
+alter table products 
+    add constraint ck_stock_value_negative check(stock>=0);
+
+--------------------------------
+
+# UNIQUE & NULL: same values not allowed but null values is allowed
+
+-- create temp table demo (email text UNIQUE);
+-- insert into demo(email) VALUES('jayesh@gmail.com');
+-- select * from demo;
+
+-- insert into demo(email) VALUES(NULL);
+-- select * from demo;
+-- insert into demo(email) VALUES('hi');
+-- select * from demo;
+insert into demo(email) VALUES('hi');
+select * from demo;
+
+
+
+---------------------------------------
+
+
+--------------------------------------------------
+1. CHECKING FOR NULL
+--------------------------------------------------
+
+QUERY 1 — WRONG WAY
+-------------------
+SELECT name, rating
+FROM products
+WHERE rating = NULL;
+
+OUTPUT
+------
+(0 rows)
+
+EXPLANATION
+-----------
+Comparing a value with NULL using = does not evaluate to TRUE. Use IS NULL to find missing values.
+
+QUERY 2 — CORRECT WAY
+---------------------
+SELECT name, rating
+FROM products
+WHERE rating IS NULL;
+
+OUTPUT (example)
+----------------
+USB-C Hub          | NULL
+Phone Charger 20W  | NULL
+
+EXPLANATION
+-----------
+IS NULL finds rows where the rating is missing. Use IS NOT NULL to find rows where it is present.
+
+
+--------------------------------------------------
+2. COALESCE() — REPLACE NULL IN THE QUERY OUTPUT
+--------------------------------------------------
+
+QUERY
+-----
+SELECT name, COALESCE(rating, 0) AS rating_or_zero
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse     | 4.3
+Mechanical Keyboard| 4.6
+USB-C Hub          | 0
+Phone Charger 20W  | 0
+
+EXPLANATION
+-----------
+COALESCE(value1, value2, ...) returns the first non-NULL value.
+Here, it displays rating when present; otherwise, it displays 0.
+It changes only the query result, not the stored table data.
+
+
+--------------------------------------------------
+3. AGGREGATE FUNCTIONS AND NULL
+--------------------------------------------------
+
+QUERY 1 — COUNT AND AVG
+-----------------------
+SELECT COUNT(*), COUNT(rating), AVG(rating)
+FROM products;
+
+OUTPUT (example format)
+-----------------------
+count | count | avg
+------+-------+---------
+8     | 6     | 4.2167
+
+EXPLANATION
+-----------
+COUNT(*) counts every row.
+COUNT(rating) counts only rows where rating is not NULL.
+AVG(rating) calculates the average of known ratings and ignores NULL values.
+The numbers above are illustrative; run the query to see the current database values.
+
+QUERY 2 — TREAT NULL RATINGS AS ZERO
+------------------------------------
+SELECT AVG(COALESCE(rating, 0))
+FROM products;
+
+OUTPUT (example format)
+-----------------------
+avg
+------
+3.1625
+
+EXPLANATION
+-----------
+COALESCE replaces each NULL rating with 0 before AVG calculates the average.
+This gives a different answer because missing ratings are now included as zeros.
+Use this only if treating a missing rating as zero makes sense for your analysis.
+
+OTHER AGGREGATE FUNCTIONS
+-------------------------
+SELECT SUM(stock) FROM products;   -- Total stock
+SELECT MIN(price) FROM products;   -- Lowest price
+SELECT MAX(price) FROM products;   -- Highest price
+
+EXPLANATION
+-----------
+Aggregate functions calculate a summary from multiple rows. Common examples are
+COUNT, SUM, AVG, MIN, and MAX. Most aggregates ignore NULL input values; COUNT(*)
+is the exception because it counts rows.
+
+
+--------------------------------------------------
+4. SORTING NULL VALUES
+--------------------------------------------------
+
+QUERY 1 — ASCENDING
+-------------------
+SELECT name, rating
+FROM products
+ORDER BY rating ASC;
+
+OUTPUT BEHAVIOUR
+----------------
+Ratings are sorted low to high; NULL values appear last by default.
+
+QUERY 2 — DESCENDING
+--------------------
+SELECT name, rating
+FROM products
+ORDER BY rating DESC;
+
+OUTPUT BEHAVIOUR
+----------------
+Ratings are sorted high to low; NULL values appear first by default.
+
+QUERY 3 — NULLS LAST EXPLICITLY
+-------------------------------
+SELECT name, rating
+FROM products
+ORDER BY rating DESC NULLS LAST;
+
+OUTPUT BEHAVIOUR
+----------------
+Ratings are sorted high to low, and products with NULL ratings appear at the end.
+
+EXPLANATION
+-----------
+In PostgreSQL, ASC places NULL values last by default and DESC places them first.
+Use NULLS FIRST or NULLS LAST to control the placement explicitly.
+
+
+--------------------------------------------------
+5. <> VS IS DISTINCT FROM
+--------------------------------------------------
+
+QUERY 1 — NOT EQUAL
+-------------------
+SELECT name, rating
+FROM products
+WHERE rating <> 4.3;
+
+OUTPUT BEHAVIOUR
+----------------
+Returns rows with a known rating other than 4.3. NULL ratings are excluded.
+
+EXPLANATION
+-----------
+A comparison with NULL evaluates to UNKNOWN, and WHERE keeps only rows whose
+condition is TRUE.
+
+QUERY 2 — NULL-SAFE DIFFERENCE
+------------------------------
+SELECT name, rating
+FROM products
+WHERE rating IS DISTINCT FROM 4.3;
+
+OUTPUT BEHAVIOUR
+----------------
+Returns rows whose rating differs from 4.3, including rows where rating is NULL.
+
+EXPLANATION
+-----------
+IS DISTINCT FROM treats NULL as a comparable value. When compared with 4.3,
+a NULL rating is considered distinct from 4.3.
+
+
+--------------------------------------------------
+6. NULLIF() — AVOID DIVISION BY ZERO
+--------------------------------------------------
+
+QUERY
+-----
+SELECT name,
+       ROUND(price / NULLIF(stock, 0), 2) AS price_per_unit
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse | 15.98
+USB-C Hub       | NULL
+
+EXPLANATION
+-----------
+NULLIF(a, b) returns NULL when a equals b; otherwise, it returns a.
+If stock is 0, NULLIF(stock, 0) returns NULL, so the query avoids dividing by zero.
+The result for that row becomes NULL instead of raising a division-by-zero error.
+
+QUERY — DISPLAY 1 INSTEAD OF NULL
+---------------------------------
+SELECT name,
+       COALESCE(ROUND(price / NULLIF(stock, 0), 2), 1) AS price_per_unit
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse | 15.98
+USB-C Hub       | 1.00
+
+EXPLANATION
+-----------
+NULLIF prevents division by zero. COALESCE then replaces a NULL result with 1.
+This is a display fallback; it does not mean the actual calculated value is 1.
+
+
+--------------------------------------------------
+7. JOINING TEXT WHEN A VALUE IS NULL
+--------------------------------------------------
+
+QUERY 1 — USING ||
+------------------
+SELECT name || ' rated ' || rating AS label_1
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse rated 4.3
+NULL
+
+EXPLANATION
+-----------
+With the || concatenation operator, if one part is NULL, the entire concatenated
+result becomes NULL.
+
+QUERY 2 — USING CONCAT()
+------------------------
+SELECT CONCAT(name, ' rated ', rating) AS label_2
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse rated 4.3
+USB-C Hub rated
+
+EXPLANATION
+-----------
+CONCAT() ignores NULL arguments, so the label remains text even when rating is NULL.
+
+QUERY 3 — SHOW "NOT RATED" INSTEAD
+----------------------------------
+SELECT CONCAT(
+    name,
+    ' rated ',
+    COALESCE(rating::text, 'Not rated')
+) AS label
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse rated 4.3
+USB-C Hub rated Not rated
+
+EXPLANATION
+-----------
+rating::text converts the numeric rating to text.
+COALESCE replaces a NULL rating with 'Not rated'.
+CONCAT joins the pieces into one label.
+
+
+--------------------------------------------------
+QUICK REVISION
+--------------------------------------------------
+
+IS NULL
+    Finds missing values.
+
+COALESCE(value, fallback)
+    Returns the first non-NULL value.
+
+COUNT(*)
+    Counts all rows.
+
+COUNT(column)
+    Counts non-NULL values in that column.
+
+AVG(column)
+    Calculates the average of non-NULL values.
+
+ORDER BY ... NULLS LAST
+    Explicitly places NULL values at the end.
+
+<>
+    Checks inequality, but NULL comparisons are UNKNOWN.
+
+IS DISTINCT FROM
+    Compares values while handling NULL safely.
+
+NULLIF(value, 0)
+    Returns NULL when value is 0; useful to avoid division by zero.
+
+||
+    Concatenates text; a NULL operand makes the result NULL.
+
+CONCAT()
+    Concatenates values while ignoring NULL arguments.
+
+::text
+    Converts a value to text in PostgreSQL.
+"""
+
+path = Path("/mnt/data/postgresql_null_deep_dive_notes.txt")
+path.write_text(content, encoding="utf-8")
+print(f"Created: {path}")
+
+from pathlib import Path
+
+content = """POSTGRESQL NULL DEEP DIVE — PRODUCTS TABLE
+=============================================
+
+Note: Outputs below are examples based on the products data discussed. Exact row counts and averages depend on the current data in your database.
+
+--------------------------------------------------
+1. CHECKING FOR NULL
+--------------------------------------------------
+
+QUERY 1 — WRONG WAY
+-------------------
+SELECT name, rating
+FROM products
+WHERE rating = NULL;
+
+OUTPUT
+------
+(0 rows)
+
+EXPLANATION
+-----------
+Comparing a value with NULL using = does not evaluate to TRUE. Use IS NULL to find missing values.
+
+QUERY 2 — CORRECT WAY
+---------------------
+SELECT name, rating
+FROM products
+WHERE rating IS NULL;
+
+OUTPUT (example)
+----------------
+USB-C Hub          | NULL
+Phone Charger 20W  | NULL
+
+EXPLANATION
+-----------
+IS NULL finds rows where the rating is missing. Use IS NOT NULL to find rows where it is present.
+
+
+--------------------------------------------------
+2. COALESCE() — REPLACE NULL IN THE QUERY OUTPUT
+--------------------------------------------------
+
+QUERY
+-----
+SELECT name, COALESCE(rating, 0) AS rating_or_zero
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse      | 4.3
+Mechanical Keyboard | 4.6
+USB-C Hub           | 0
+Phone Charger 20W   | 0
+
+EXPLANATION
+-----------
+COALESCE(value1, value2, ...) returns the first non-NULL value.
+Here, it displays rating when present; otherwise, it displays 0.
+It changes only the query result, not the stored table data.
+
+
+--------------------------------------------------
+3. AGGREGATE FUNCTIONS AND NULL
+--------------------------------------------------
+
+QUERY 1 — COUNT AND AVG
+-----------------------
+SELECT COUNT(*), COUNT(rating), AVG(rating)
+FROM products;
+
+OUTPUT (example format)
+-----------------------
+count | count | avg
+------+-------+---------
+8     | 6     | 4.2167
+
+EXPLANATION
+-----------
+COUNT(*) counts every row.
+COUNT(rating) counts only rows where rating is not NULL.
+AVG(rating) calculates the average of known ratings and ignores NULL values.
+The numbers above are illustrative; run the query to see the current database values.
+
+QUERY 2 — TREAT NULL RATINGS AS ZERO
+------------------------------------
+SELECT AVG(COALESCE(rating, 0))
+FROM products;
+
+OUTPUT (example format)
+-----------------------
+avg
+------
+3.1625
+
+EXPLANATION
+-----------
+COALESCE replaces each NULL rating with 0 before AVG calculates the average.
+This gives a different answer because missing ratings are now included as zeros.
+Use this only if treating a missing rating as zero makes sense for your analysis.
+
+OTHER AGGREGATE FUNCTIONS
+-------------------------
+SELECT SUM(stock) FROM products;   -- Total stock
+SELECT MIN(price) FROM products;   -- Lowest price
+SELECT MAX(price) FROM products;   -- Highest price
+
+EXPLANATION
+-----------
+Aggregate functions calculate a summary from multiple rows. Common examples are
+COUNT, SUM, AVG, MIN, and MAX. Most aggregates ignore NULL input values; COUNT(*)
+is the exception because it counts rows.
+
+
+--------------------------------------------------
+4. SORTING NULL VALUES
+--------------------------------------------------
+
+QUERY 1 — ASCENDING
+-------------------
+SELECT name, rating
+FROM products
+ORDER BY rating ASC;
+
+OUTPUT BEHAVIOUR
+----------------
+Ratings are sorted low to high; NULL values appear last by default.
+
+QUERY 2 — DESCENDING
+--------------------
+SELECT name, rating
+FROM products
+ORDER BY rating DESC;
+
+OUTPUT BEHAVIOUR
+----------------
+Ratings are sorted high to low; NULL values appear first by default.
+
+QUERY 3 — NULLS LAST EXPLICITLY
+-------------------------------
+SELECT name, rating
+FROM products
+ORDER BY rating DESC NULLS LAST;
+
+OUTPUT BEHAVIOUR
+----------------
+Ratings are sorted high to low, and products with NULL ratings appear at the end.
+
+EXPLANATION
+-----------
+In PostgreSQL, ASC places NULL values last by default and DESC places them first.
+Use NULLS FIRST or NULLS LAST to control the placement explicitly.
+
+
+--------------------------------------------------
+5. <> VS IS DISTINCT FROM
+--------------------------------------------------
+
+QUERY 1 — NOT EQUAL
+-------------------
+SELECT name, rating
+FROM products
+WHERE rating <> 4.3;
+
+OUTPUT BEHAVIOUR
+----------------
+Returns rows with a known rating other than 4.3. NULL ratings are excluded.
+
+EXPLANATION
+-----------
+A comparison with NULL evaluates to UNKNOWN, and WHERE keeps only rows whose
+condition is TRUE.
+
+QUERY 2 — NULL-SAFE DIFFERENCE
+------------------------------
+SELECT name, rating
+FROM products
+WHERE rating IS DISTINCT FROM 4.3;
+
+OUTPUT BEHAVIOUR
+----------------
+Returns rows whose rating differs from 4.3, including rows where rating is NULL.
+
+EXPLANATION
+-----------
+IS DISTINCT FROM treats NULL as a comparable value. When compared with 4.3,
+a NULL rating is considered distinct from 4.3.
+
+
+--------------------------------------------------
+6. NULLIF() — AVOID DIVISION BY ZERO
+--------------------------------------------------
+
+QUERY
+-----
+SELECT name,
+       ROUND(price / NULLIF(stock, 0), 2) AS price_per_unit
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse | 15.98
+USB-C Hub       | NULL
+
+EXPLANATION
+-----------
+NULLIF(a, b) returns NULL when a equals b; otherwise, it returns a.
+If stock is 0, NULLIF(stock, 0) returns NULL, so the query avoids dividing by zero.
+The result for that row becomes NULL instead of raising a division-by-zero error.
+
+QUERY — DISPLAY 1 INSTEAD OF NULL
+---------------------------------
+SELECT name,
+       COALESCE(ROUND(price / NULLIF(stock, 0), 2), 1) AS price_per_unit
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse | 15.98
+USB-C Hub       | 1.00
+
+EXPLANATION
+-----------
+NULLIF prevents division by zero. COALESCE then replaces a NULL result with 1.
+This is a display fallback; it does not mean the actual calculated value is 1.
+
+
+--------------------------------------------------
+7. JOINING TEXT WHEN A VALUE IS NULL
+--------------------------------------------------
+
+QUERY 1 — USING ||
+------------------
+SELECT name || ' rated ' || rating AS label_1
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse rated 4.3
+NULL
+
+EXPLANATION
+-----------
+With the || concatenation operator, if one part is NULL, the entire concatenated
+result becomes NULL.
+
+QUERY 2 — USING CONCAT()
+------------------------
+SELECT CONCAT(name, ' rated ', rating) AS label_2
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse rated 4.3
+USB-C Hub rated
+
+EXPLANATION
+-----------
+CONCAT() ignores NULL arguments, so the label remains text even when rating is NULL.
+
+QUERY 3 — SHOW "NOT RATED" INSTEAD
+----------------------------------
+SELECT CONCAT(
+    name,
+    ' rated ',
+    COALESCE(rating::text, 'Not rated')
+) AS label
+FROM products;
+
+OUTPUT (example)
+----------------
+Wireless Mouse rated 4.3
+USB-C Hub rated Not rated
+
+EXPLANATION
+-----------
+rating::text converts the numeric rating to text.
+COALESCE replaces a NULL rating with 'Not rated'.
+CONCAT joins the pieces into one label.
+
+
+--------------------------------------------------
+QUICK REVISION
+--------------------------------------------------
+
+IS NULL
+    Finds missing values.
+
+COALESCE(value, fallback)
+    Returns the first non-NULL value.
+
+COUNT(*)
+    Counts all rows.
+
+COUNT(column)
+    Counts non-NULL values in that column.
+
+AVG(column)
+    Calculates the average of non-NULL values.
+
+ORDER BY ... NULLS LAST
+    Explicitly places NULL values at the end.
+
+<>
+    Checks inequality, but NULL comparisons are UNKNOWN.
+
+IS DISTINCT FROM
+    Compares values while handling NULL safely.
+
+NULLIF(value, 0)
+    Returns NULL when value is 0; useful to avoid division by zero.
+
+||
+    Concatenates text; a NULL operand makes the result NULL.
+
+CONCAT()
+    Concatenates values while ignoring NULL arguments.
+
+::text
+    Converts a value to text in PostgreSQL.
+"""
+
+-----------------------------------
+
+========================
+
+1. NULL = NULL
+   Returns UNKNOWN, not TRUE. Use IS NULL to check missing values.
+
+2. TIMESTAMPTZ vs TIMESTAMP
+   Use TIMESTAMPTZ for events representing a real point in time, such as order creation.
+
+3. NUMERIC vs REAL
+   Use NUMERIC for exact decimal values like prices and wallet balances; REAL is approximate.
+
+4. Integer division
+   7 / 2 returns 3. Use 7::numeric / 2 to get 3.5.
+
+5. RETURNING
+   Returns affected rows after INSERT, UPDATE, or DELETE. APIs use it to retrieve generated IDs and updated data without another query.
+
+6. Named constraints
+   Meaningful names make constraints easier to identify, debug, and drop.
+
+7. Choosing data types
+   - Price / wallet balance: NUMERIC
+   - Age / like count: SMALLINT / BIGINT
+   - Phone / PIN code: VARCHAR
+   - Verified flag: BOOLEAN
+   - Date of birth: DATE
+   - Created time: TIMESTAMPTZ
+   - Username (30 characters): VARCHAR(30)
+   - Caption (2200 characters): VARCHAR(2200)
+   - GPS coordinates: NUMERIC(9,6) with range checks
+   - Unguessable order ID: UUID generated securely
+   - Stars (1–5): SMALLINT with a CHECK constraint
+   - Video duration: INTEGER (seconds)
+
+KEY PRINCIPLE
+-------------
+Choose data types based on the value's meaning, precision, range, and validation requirements.
+"""
+
+----------------------------------------
+
+
+# How a query is really processed
+
+1. FROM             which table(s)
+2. WHERE            filter ROWS
+3. GROUP BY         make groups
+4. HAVING           filter GROUPS
+5. SELECT           choose / compute columns (aliases are created here)
+6. DISTINCT         remove duplicates
+7. ORDER BY         sort
+8. LIMIT/OFFSET     cut the result
+
+
+------------------------------------------------------
+
+
+# Pattern matching: LIKE and ILIKE
+
+- % means any number of characters (including none).
+- _ means exactly one character.
+- LIKE is case-sensitive. ILIKE is case-insensitive (PostgreSQL only).
+
+
+SELECT name FROM products WHERE name LIKE 'Gaming%';     -- starts with: 3 rows
+SELECT name FROM products WHERE name LIKE '%Mouse%';     -- contains: 2 rows
+SELECT name FROM products WHERE name LIKE '%webcam%';    -- 0 rows (case matters)
+SELECT name FROM products WHERE name ILIKE '%webcam%';   -- 3 rows
+SELECT name FROM products WHERE name LIKE '_ebcam%';     -- 'Webcam HD', 'Webcam 4K'
+
+- To search for a literal % or _, escape it with a backslash:
+
+SELECT name FROM products WHERE name LIKE '%\%%';    -- 1 row: Cable_Organizer 50% Pack
+SELECT name FROM products WHERE name LIKE '%_%';     -- 20 rows! (_ means "any one character")
+
+-------------------------------------
+
+# Logical operators: AND, OR, NOT
+
+-> @ Precedence: NOT first, then AND, then OR. Use brackets whenever you mix AND with OR.
+
+SELECT name, category_id, is_active FROM products
+WHERE category_id = 3 OR category_id = 4 AND is_active = false;     -- 5 rows
+
+SELECT name, category_id, is_active FROM products
+WHERE (category_id = 3 OR category_id = 4) AND is_active = false;
+
+--------------------------------------
+
+# limit and offset
+
+-> shorted id: 12 13 14 15 16 17 18 19 21 30
+
+SELECT id, name FROM products ORDER BY id LIMIT 5;
+-id: 12 13 14 15 16
+
+SELECT id, name FROM products ORDER BY id LIMIT 5 OFFSET 5;
+- id: 17 18 19 21 30
+
+- OFFSET 5 skips the first 5 rows
+- LIMIT 5 then returns the next 5 rows
+
+
+-------------------------------------------
+
+# DISTINCT: unique value
+
+select distinct categories_id from products;
+
+ categories_id                                                                                                                                                     
+---------------
+              
+             1
+             3
+             2
+
+
+
+select count(distinct rating) from products;
+
+ count                                                                                                                                                             
+-------
+     9
+
+
+------------------------------------------------
+
+ex: Most expensive product per category:
+
+SELECT DISTINCT categories_id, name, price FROM products order by categories_id, price desc;
+
+ categories_id |            name             |  price                                                                                                              
+---------------+-----------------------------+---------
+             1 | USB-C Hub                   | 1429.45
+             1 | wireless headphone          | 1318.90
+             1 | Laptop Stand                | 1098.90
+             1 | Wireless Mouse              |  878.90
+             1 | Phone Charger 20W           |  658.90
+             2 | Noise Cancelling Headphones | 6598.90
+             3 | Webcam 4K                   | 4499.00
+             3 | Mechanical Keyboard         | 3848.90
+             3 | Gaming Controller           | 3499.00
+             3 | Gaming Headset              | 2999.00
+             3 | Webcam HD                   | 2418.90
+               | Wireless Mouses             | 6111.84
+               | Old Webcam v1               |  548.90
+               | demo item                   |  100.00
+(14 rows)
+
+-> but still we have some more product in same categories to remove we will use distinct on:
+-> DISTINCT ON (PostgreSQL special) keeps the first row of each group, where “first” is decided by ORDER BY. 
+-> Most expensive product per category:
+
+SELECT DISTINCT on (categories_id) categories_id, name, price FROM products order by categories_id, price desc;
+
+ categories_id |            name             |  price                                                                                                              
+---------------+-----------------------------+---------
+             1 | USB-C Hub                   | 1429.45
+             2 | Noise Cancelling Headphones | 6598.90
+             3 | Webcam 4K                   | 4499.00
+               | Wireless Mouses             | 6111.84
+(4 rows)
+
+-------------------------------------------------------
+
+# Aggregates: an aggregate function turns many rows into one value.
+-> help in to calculate values from multiple rows
+
+    @Function	        @Result
+    COUNT(*)	        number of rows
+    COUNT(col)	        rows where col is not NULL
+    COUNT(DISTINCT col)	unique non-NULL values
+    SUM, AVG, MIN, MAX	ignore NULLs
+
+SELECT COUNT(*), COUNT(rating), COUNT(DISTINCT category_id) FROM products;   -- 20, 17, 4
+SELECT SUM(stock) FROM products;                                              -- 699
+SELECT MIN(price), MAX(price) FROM products;                                  -- 199.00, 15999.00
+SELECT ROUND(AVG(rating), 2) FROM products;                                   -- about 4.18
+
+# NOTE: SUM & AVG ignore NULL, so do like :
+SUM(COALESCE(x, 0)) -> 0+x... dosn't mater but whole sum = null then use: COALESCE(sum(x), 0)
+AVG(COALESCE(x, 0)) -> include null to 0 and consider & avg => null then: COALESCE(avg(x), 0)
+
+------------------------------------
+
+FILTER: FILTER is used with aggregate functions like COUNT(), SUM(), and AVG() to apply a condition to the rows used by that particular aggregate.
+
+
+without filter;
+
+SELECT
+    COUNT(*) AS total_products,
+    COUNT(*) AS active_products
+FROM products
+WHERE is_active = TRUE;
+
+first it filter out the table and then count 
+but we want from total where how many are active
+then use:
+    `select count(*) filter(condition) from table_name;`
+
+
+select count(*) as total from products;
+ total                                                                                                                                                             
+
+-------
+    14
+(1 row)
+
+
+select count(*) filter (where is_active) as active from products;
+
+ active                                                                                                                                                            
+--------
+     12
+(1 row)
+
+
+select count(*) filter (where not is_active) as active from products;
+
+ active                                                                                                                                                            
+--------
+      2
+(1 row)
+
+
+-----------------------------------------------
+
+# GROUP BY combines rows that have the same value in a column into groups, so you can calculate something for each group using aggregate functions like COUNT(), SUM(), and AVG().
+
+Imagine we have a students table:
+
+    student_name	department	marks
+    Rahul	            IT	      80
+    Priya	            CS	      90
+    Amit	            IT	      70
+    Neha	            CS	      85
+    Jay	                IT	      95
+
+- Without GROUP BY, AVG(marks) calculates one average across all students.
+
+SELECT AVG(marks)
+FROM students;
+
+- but we want average for IT and CS
+
+SELECT department, AVG(marks) AS average_marks
+FROM students
+GROUP BY department;
+
+Result:
+    department	average_marks
+    CS	           87.5
+    IT	           81.67
+
+----------------------------------------
+ex:
+
+select rating, count(*) as product from products group by rating order by rating, product; 
+
+ rating | product                                                                                                                                                  
+--------+---------
+    2.9 |       1
+    3.8 |       1
+    4.1 |       1
+    4.2 |       1
+    4.3 |       2
+    4.5 |       1
+    4.6 |       1
+    4.7 |       1
+    5.0 |       1
+        |       4
+(10 rows)
+
+
+select rating, count(*) as product from products group by rating order by rating;         
+
+ rating | product                                                                                                                                                  
+--------+---------
+    2.9 |       1
+    3.8 |       1
+    4.1 |       1
+    4.2 |       1
+    4.3 |       2
+    4.5 |       1
+    4.6 |       1
+    4.7 |       1
+    5.0 |       1
+        |       4
+(10 rows)
+
+-------------------------------
+
+
+# String functions:
+
+upper(), lower() initcap()
+length()
+left(name, 2), right(name, 2)
+concat('hello', 'world')
+concat_ws(' ', 'hello', 'world') -> with seperation
+concat_ws(' + ', 'hello', 'world') -> with seperation
+TRIM, LTRIM, RTRIM: trim('  hi   ') -> result: 'hi'
+REPLACE	REPLACE(name, 'Webcam', 'Camera')	text replaced
+
+- the first word:
+
+SPLIT_PART(name, ' ', 1) from products;
+
+ split_part                                                                                                                                                        
+------------
+ Old
+ Wireless
+ wireless
+ Wireless
+ USB-C
+ Laptop
+ Phone
+ Noise
+ Mechanical
+ Webcam
+ demo
+ Webcam
+ Gaming
+ Gaming
+(14 rows)
+
+-> with gaming how many:
+
+select SPLIT_PART(name, ' ', 1)as first, count(*) from products group by first;                  
+
+   first    | count                                                                                                                                                
+------------+-------
+ Webcam     |     2
+ wireless   |     1
+ Gaming     |     2
+ Old        |     1
+ Noise      |     1
+ demo       |     1
+ Mechanical |     1
+ Laptop     |     1
+ Wireless   |     2
+ Phone      |     1
+ USB-C      |     1
+
+----------------------
+
+# date and time:
+
+
+select current_time; 
+     current_time                                                                                                                                                  
+-----------------------
+ 00:26:37.882587+05:30
+(1 row)
+
+
+select now();
+               now                                                                                                                                                 
+----------------------------------
+ 2026-10-16 00:26:43.878188+05:30
+(1 row)
+
+
+select current_date;
+ current_date                                                                                                                                                      
+--------------
+ 2026-10-16
+(1 row)
+
+
+select now() + interval '7 day';
+             ?column?                                                                                                                                              
+----------------------------------
+ 2026-10-23 00:28:47.890596+05:30
+(1 row)
+
+
+select now() + interval '5hr';  
+             ?column?                                                                                                                                              
+----------------------------------
+ 2026-10-16 05:29:03.919061+05:30
+(1 row)
+
+select now() + interval '5hour';
+             ?column?                                                                                                                                              
+----------------------------------
+ 2026-10-16 05:29:21.074381+05:30
+(1 row)
+
+
+select now() + interval '5min'; 
+             ?column?                                                                                                                                              
+----------------------------------
+ 2026-10-16 00:34:33.114207+05:30
+(1 row)
+
+
+---------------------------------------------------
+
+# BETWEEN trwp:
+
+-- looks right, but loses a row
+SELECT name, created_at FROM products
+WHERE created_at BETWEEN '2026-10-01' AND '2026-10-13';        -- 1 row
+
+-- correct: start inclusive, end exclusive (the next day at 00:00)
+SELECT name, created_at FROM products
+WHERE created_at >= '2026-10-01' AND created_at < '2026-10-14';   -- 2 rows
+
+-> '2026-10-13' means midnight at the start of the 13th, so the Monitor created at 23:30 on the 13th is missed. Use the >= start AND < next day pattern for time ranges every time.
+-> lly launched_on >= '2024-01-01' AND launched_on < '2025-01-01'
+
+
+------------------------------------
+
+# cast/casting: convert one datatype to another datatype
+
+
+-> two way:
+
+1. 
+select '123'::interger;
+
+select '123'::text ;
+- even though look same but type text
+
+2. 
+select cast('123' as text);
+
+select cast('123' as numeric);
+
+===============
+@Syntax	                @Meaning
+value::TYPE	            PostgreSQL's shorthand syntax
+CAST(value AS TYPE)	    Standard SQL syntax
+===============
+
+
+# why imp:
+
+select 7/2; -> 3 but actual 3.5
+select 7::numeric / 2 -> 3.5
+
+----------------------------------------
+
+# CASE: if/else in PostgreSQL
+
+ex: 
+select case when 10>5 then 'true' else 'false' end as result; 
+
+select 
+    case 
+        when 10>5 then 'true' 
+        else 'false' 
+    end as result; 
+
+- both same just look different...
+
+
+select name, price, case when price<=1000 then 'less' when price <=2000 then 'medium' else 'more' end as amount from products; 
+
+            name             |  price  | amount                                                                                                                    
+-----------------------------+---------+--------
+ Old Webcam v1               |  548.90 | less
+ Wireless Mouses             | 6111.84 | more
+ wireless headphone          | 1318.90 | medium
+ Wireless Mouse              |  878.90 | less
+ USB-C Hub                   | 1429.45 | medium
+ Laptop Stand                | 1098.90 | medium
+ Phone Charger 20W           |  658.90 | less
+ Noise Cancelling Headphones | 6598.90 | more
+ Mechanical Keyboard         | 3848.90 | more
+ Webcam HD                   | 2418.90 | more
+ demo item                   |  100.00 | less
+ Webcam 4K                   | 4499.00 | more
+ Gaming Controller           | 3499.00 | more
+ Gaming Headset              | 2999.00 | more
+(14 rows)
+
+=================================================
+=> What if you omit ELSE?
+- there is no ELSE, so the result is NULL.
+=================================================
+
+
+# Group by a case:
+
+select case when price<=1000 then 'less' when price <=2000 then 'medium' else 'more' end as amount  from products group by amount;         
+
+ amount                                                                                                                                                            
+--------
+ more
+ medium
+ less
+(3 rows)
+
+
+select case when price<=1000 then 'less' when price <=2000 then 'medium' else 'more' end as amount, count(*) from products group by amount;
+
+ amount | count                                                                                                                                                    
+--------+-------
+ more   |     7
+ medium |     3
+ less   |     4
+(3 rows)
+
+-----------------------------------------------------
+
+# Conditional aggregation (very common in reports and interviews):
+
+SELECT category_id,
+       SUM(CASE WHEN is_active THEN 1 ELSE 0 END) AS active_count,
+       SUM(CASE WHEN NOT is_active THEN 1 ELSE 0 END) AS inactive_count
+FROM products GROUP BY category_id;
+
+---------------------------------------------------------
+---------------------------------------------------------
+---------------------------------------------------------
+
+
+# KEY: 
+1. super key: any set of column which are unique: 
+    ex: {id}, {id, name}, {id, email}, {email}...
+2. candidate key: minimal of super key...
+    ex: if super key: {id, name} then candidate key: id, name.
+3. PRIMARY key: unique with not null and one per table only
+    ex: id PRIMARY key -> then no one have P_key in table(only one)
+    -> id: unique and not null
+4. Composite key: key made up of 2 or more column
+    ex: likes(users, posts);
+5. Foreign key: a column that must match with another table column with not null value
+    ex: `post.user_id->user.id`
+
+--------------------------------------------------------
+
+
+===============================================================
+
+1. PRIMARY KEY (PK)
+-------------------
+- Uniquely identifies each row.
+- Cannot contain NULL or duplicate values.
+- Example:
+  CREATE TABLE customers (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL
+  );
+
+
+2. FOREIGN KEY (FK)
+-------------------
+- Ensures a value refers to an existing row in another table (or the same table).
+- The referenced column must have suitable uniqueness enforcement, usually a PRIMARY KEY or UNIQUE constraint.
+- A foreign key can contain NULL unless NOT NULL is specified.
+- The FK column does not need to be unique; many rows can reference the same parent.
+
+Two ways to define a foreign key:
+
+A) Inline / column-level:
+  CREATE TABLE orders (
+      id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      customer_id INTEGER REFERENCES customers(id),
+      amount NUMERIC(10,2) NOT NULL
+  );
+
+B) Table-level / named constraint:
+  CREATE TABLE orders (
+      id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      customer_id INTEGER,
+      amount NUMERIC(10,2) NOT NULL,
+      CONSTRAINT fk_orders_customer
+          FOREIGN KEY (customer_id)
+          REFERENCES customers(id)
+  );
+
+Both define the same relationship. The second lets you choose a constraint name.
+If you omit the name, PostgreSQL creates one automatically.
+To rename a constraint:
+  ALTER TABLE orders
+  RENAME CONSTRAINT orders_customer_id_fkey TO fk_orders_customer;
+
+Invalid reference example:
+  INSERT INTO orders (customer_id, amount) VALUES (999, 500);
+This fails if customer 999 does not exist.
+
+Delete behavior:
+- Default (NO ACTION): normally prevents deleting a referenced parent.
+- ON DELETE CASCADE: deletes dependent child rows too.
+- ON DELETE SET NULL: sets child FK to NULL; the column must allow NULL.
+
+# EX:
+
+-- A. default behaviour: blocked
+DELETE FROM categories WHERE name = 'Audio';
+-- ERROR: update or delete on table "categories" violates foreign key constraint
+--        "fk_products_category" on table "products"
+
+-- B. SET NULL
+BEGIN;
+ALTER TABLE products DROP CONSTRAINT fk_products_category;
+ALTER TABLE products ADD CONSTRAINT fk_products_category
+    FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL;
+DELETE FROM categories WHERE name = 'Audio';
+SELECT id, name, category_id FROM products WHERE id IN (6, 10, 17);   -- category_id is now NULL
+ROLLBACK;
+
+-- C. CASCADE
+BEGIN;
+ALTER TABLE products DROP CONSTRAINT fk_products_category;
+ALTER TABLE products ADD CONSTRAINT fk_products_category
+    FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE;
+DELETE FROM categories WHERE name = 'Audio';
+SELECT COUNT(*) FROM products;                                        -- 17, three products vanished
+ROLLBACK;
+SELECT COUNT(*) FROM products;                                        -- 20 again
+
+
+3. IDENTITY
+-----------
+- Automatically generates numeric IDs using a sequence.
+- Starts at 1 by default.
+- PRIMARY KEY ensures uniqueness; IDENTITY alone does not.
+
+A) GENERATED ALWAYS:
+  CREATE TABLE test_always (
+      id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      name TEXT
+  );
+
+  Automatic ID:
+  INSERT INTO test_always (name) VALUES ('Jay');
+
+  Manual ID (normally rejected):
+  INSERT INTO test_always (id, name) VALUES (100, 'Rahul');
+
+  Manual ID with override (allowed if ID 100 is not already used):
+  INSERT INTO test_always (id, name)
+  OVERRIDING SYSTEM VALUE VALUES (100, 'Rahul');
+
+B) GENERATED BY DEFAULT:
+  CREATE TABLE test_default (
+      id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+      name TEXT
+  );
+
+  Automatic ID:
+  INSERT INTO test_default (name) VALUES ('Jay');
+
+  Manual ID (allowed if ID 100 is not already used):
+  INSERT INTO test_default (id, name) VALUES (100, 'Rahul');
+
+Important: manually inserting ID 100 does not automatically move the sequence to 100.
+Later generated IDs can conflict with manually inserted IDs unless the sequence is adjusted.
+
+
+4. UUID
+-------
+- UUID = Universally Unique Identifier; a 128-bit identifier, usually shown in a
+  format like 550e8400-e29b-41d4-a716-446655440000.
+- Not a sequence starting at 0 or 1.
+- Random UUIDs are very unlikely to collide, but PRIMARY KEY still enforces uniqueness.
+- Useful for public-facing IDs or systems that generate IDs independently.
+- Larger than INTEGER/BIGINT and less readable.
+
+Example:
+  CREATE TABLE public_items (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL
+  );
+
+  INSERT INTO public_items (name)
+  VALUES ('Sample item')
+  RETURNING *;
+
+
+5. SERIAL vs IDENTITY
+---------------------
+- SERIAL is older PostgreSQL shorthand that uses a sequence-backed default.
+- IDENTITY is the modern, SQL-standard approach for new tables.
+- SERIAL and GENERATED BY DEFAULT generally allow manually supplied IDs.
+- GENERATED ALWAYS rejects manually supplied IDs by default; use
+  OVERRIDING SYSTEM VALUE to supply one explicitly.
+
+
+
+----------------------------------------------------------
+
+QUICK SUMMARY
+-------------
+- PK: uniquely identifies a row.
+- FK: ensures a reference points to an existing row.
+- IDENTITY: automatically generates numeric IDs.
+- UUID: stores a UUID identifier, not a sequential number.
+- GENERATED ALWAYS: manual IDs rejected by default.
+- GENERATED BY DEFAULT: manual IDs allowed.
+
+----------------------------------------------------------
+
+
+===============================================
+
+Main idea:
+Relationships describe how rows in tables connect. Cardinality describes how many rows
+can be connected.
+
+1. ONE-TO-ONE (1:1)
+-------------------
+Main rule: Use a foreign key (FK) referencing the parent table's primary key (PK).
+Make the FK UNIQUE so multiple rows cannot reference the same parent. Use NOT NULL
+when every child row must have a parent.
+
+Example: One person has at most one passport record.
+
+CREATE TABLE passports (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    person_id INTEGER UNIQUE NOT NULL REFERENCES persons(id)
+);
+
+- UNIQUE: prevents two passport rows from referencing the same person.
+- NOT NULL: every passport row must reference a person.
+
+
+2. ONE-TO-MANY (1:N)
+--------------------
+Main rule: The FK is on the many-side (child) table and is NOT UNIQUE, so multiple
+child rows can reference the same parent. Use NOT NULL if every child must have a parent.
+
+Example: One category can have many products.
+
+CREATE TABLE products (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name TEXT NOT NULL,
+    category_id INTEGER NOT NULL REFERENCES categories(id)
+);
+
+- Many products can share the same category_id.
+- No UNIQUE constraint on category_id, because that would limit each category to one product.
+
+
+3. MANY-TO-MANY (M:N)
+---------------------
+Main rule: Create a junction table with two FKs, one referencing each parent table.
+Make the pair of FKs a composite PK to prevent duplicate relationships.
+
+Example: Students can take many courses, and each course can have many students.
+
+CREATE TABLE enrollments (
+    student_id INTEGER REFERENCES students(id),
+    course_id INTEGER REFERENCES courses(id),
+    PRIMARY KEY (student_id, course_id)
+);
+
+- student_id is an FK to students(id).
+- course_id is an FK to courses(id).
+- Together, (student_id, course_id) form ONE composite primary key.
+- This prevents the same student-course pair from being inserted twice.
+- Each student and each course can still appear in multiple different pairs.
+
+QUICK COMPARISON
+----------------
+1:1  -> FK + UNIQUE; add NOT NULL when the child must have a parent.
+1:N  -> FK on the many-side; FK is not UNIQUE; add NOT NULL if required.
+M:N  -> Junction table + two FKs + composite PK made from the pair.
+
+Remember:
+- PK uniquely identifies a row.
+- FK ensures a reference points to an existing row.
+- UNIQUE prevents duplicate values/pairs.
+- NOT NULL prevents missing values.
+- Cardinality is about how many rows can relate, not just about the number of FK columns.
+"""
+
+
+--------------------------------------------------------
+--------------------------------------------------------
+
+
+
+
+
+
+--------------------------------------------------------
+--------------------------------------------------------
+
+
+JOIN:
+Combines rows from two tables using a related column.
+Example tables:
+- products: categories_id
+- categories: id
+
+INNER JOIN:
+Returns only rows with a match in both tables.
+Example:
+SELECT p.name, c.name AS category
+FROM products p
+INNER JOIN categories c ON p.categories_id = c.id;
+Our example: 11 rows.
+
+LEFT JOIN:
+Returns every row from the left table (products) and matching rows from categories.
+No match on the right -> right-side columns are NULL.
+Our example: 14 rows.
+
+RIGHT JOIN:
+Returns every row from the right table (categories) and matching rows from products.
+No match on the left -> left-side columns are NULL.
+Our example: 13 rows.
+
+FULL OUTER JOIN:
+Returns all rows from both tables, matching where possible.
+Unmatched rows have NULLs for the other table's columns.
+Our example: 16 rows.
+
+QUICK COMPARISON:
+INNER = matching rows only
+LEFT  = all left-table rows + matches
+RIGHT = all right-table rows + matches
+FULL  = all rows from both tables
+
+Find products without a category:
+SELECT p.id, p.name
+FROM products p
+LEFT JOIN categories c ON p.categories_id = c.id
+WHERE c.id IS NULL;
+
+Find categories without products:
+SELECT c.id, c.name
+FROM categories c
+LEFT JOIN products p ON p.categories_id = c.id
+WHERE p.id IS NULL;
+
+NOTES:
+- ON specifies how the tables are related.
+- p and c are table aliases.
+- ORDER BY sorts the output; it does not change which rows the JOIN returns.
+- LEFT OUTER JOIN = LEFT JOIN; RIGHT OUTER JOIN = RIGHT JOIN.
+"""
+
+----------------------------------------------------------
+
+
+"""MULTI-JOIN IN POSTGRESQL
+
+1. Meaning
+Multi-JOIN means joining three or more tables in one SQL query to get related information.
+
+2. Example table relationships
+customers.id = orders.customer_id
+orders.id = order_items.order_id
+order_items.product_id = products.id
+
+3. Example: Join four tables
+SELECT
+    c.name AS customer_name,
+    o.id AS order_id,
+    p.name AS product_name,
+    oi.quantity,
+    p.price
+FROM customers c
+JOIN orders o
+    ON o.customer_id = c.id
+JOIN order_items oi
+    ON oi.order_id = o.id
+JOIN products p
+    ON p.id = oi.product_id
+ORDER BY o.id;
+
+Explanation:
+- First JOIN connects customers with their orders.
+- Second JOIN connects orders with their order items.
+- Third JOIN connects order items with product details.
+- SELECT chooses the columns to display.
+- Each ON condition tells PostgreSQL how the tables are related.
+
+4. Example: Three-table JOIN
+To show each customer's name, order ID, and order status:
+
+SELECT
+    c.name,
+    o.id AS order_id,
+    o.status
+FROM customers c
+JOIN orders o
+    ON o.customer_id = c.id;
+
+5. JOIN types
+- INNER JOIN (or JOIN): returns only matching rows.
+- LEFT JOIN: keeps every row from the left table, even if no matching row exists on the right.
+- RIGHT JOIN: keeps every row from the right table, even if no matching row exists on the left.
+
+6. Example: LEFT JOIN
+Show all orders, including orders that have no order items:
+
+SELECT
+    o.id AS order_id,
+    o.status,
+    oi.product_id,
+    oi.quantity
+FROM orders o
+LEFT JOIN order_items oi
+    ON oi.order_id = o.id;
+
+Important:
+With multiple JOINs, the JOIN type matters. A later INNER JOIN can remove rows that an earlier LEFT JOIN preserved.
+
+7. Practice question
+Display every customer's name, order ID, and order status. Include customers who have never placed an order.
+
+Solution:
+
+SELECT c.name, o.id AS order_id, o.status
+FROM customers c
+LEFT JOIN orders o
+    ON o.customer_id = c.id
+ORDER BY c.id, o.id;
+
+KEY POINT
+For each additional table, add a JOIN and specify how it relates to the existing tables using ON.
+"""
+
+
+
+------------------------------------------------------------------
+
+
+# Aggregating over a JOIN: ombining related rows from multiple tables and then calculating a summary using aggregate functions such as SUM(), COUNT(), AVG(), MIN(), or MAX().
+
+
+ex: 
+
+categories:
+- id: category's primary key
+- name: category name
+
+products:
+- id: product's primary key
+- name: product name
+- price: product price
+- categories_id: foreign key referencing categories.id
+
+Relationship:
+products.categories_id = categories.id
+
+```
+SELECT
+    c.id,
+    c.name,
+    SUM(p.price) AS total_price
+FROM categories c
+JOIN products p
+    ON p.categories_id = c.id
+GROUP BY c.id, c.name
+ORDER BY total_price DESC; --optional to order
+```
+
+-> group by only c.id or c.name both work for this example but:
+Why GROUP BY both id and name?
+- c.id uniquely identifies a category.
+- c.name is included to display the category name and make the grouping explicit.
+- Grouping by ID avoids accidentally combining two different categories if they share the same name.
+- In PostgreSQL, grouping by a primary key alone may allow selecting its dependent name, but GROUP BY c.id, c.name is explicit and portable across databases.
+
+
+------------------------
+
+JOIN versus LEFT JOIN
+INNER JOIN (written as JOIN):
+- Includes only categories that have matching products.
+- Categories without products do not appear.
+
+------------------------
+
+Query to include categories with no products and show their total as 0:
+
+SELECT
+    c.id,
+    c.name,
+    COALESCE(SUM(p.price), 0) AS total_price
+FROM categories c
+LEFT JOIN products p
+    ON p.categories_id = c.id
+GROUP BY c.id, c.name
+ORDER BY total_price DESC;
+
+
+
+Important notes
+- SUM(p.price) totals product prices; it does not calculate sales revenue.
+- For sales revenue, use order_items and calculate SUM(p.price * oi.quantity), joining order_items to products through oi.product_id = p.id. Join orders too if filtering or grouping by order/customer details.
+- Without ORDER BY, output row order is not guaranteed.
+- GROUP BY c.name alone can merge separate categories with identical names. Grouping by c.id, c.name keeps categories distinct.
+- Aggregate functions can include SUM(), COUNT(), AVG(), MIN(), and MAX().
+
+
+
+----------------------------------------------------------
+
+# Joins inside UPDATE and DELETE
+
+->In PostgreSQL, use UPDATE ... FROM to update products based on another table.
+
+Example: Increase the price of products in the Accessories category by 10%.
+
+UPDATE products p
+SET price = p.price * 1.10
+FROM categories c
+WHERE p.categories_id = c.id
+  AND c.name = 'Accessories';
+
+
+-> PostgreSQL uses DELETE ... USING to delete rows based on another table.
+
+Example: Delete products belonging to the Accessories category.
+
+DELETE FROM products p
+USING categories c
+WHERE p.categories_id = c.id
+  AND c.name = 'Accessories';
+
+
+
+=====================================================
+# Remember:
+=====================================================
+    Operation	                PostgreSQL_syntax
+-----------------------------------------------------
+Read data from joined tables	SELECT ... JOIN
+Update using another table	    UPDATE ... FROM
+Delete using another table	    DELETE ... USING
+=====================================================
+=====================================================
+
+
+-----------------------------------------------------------------
+
+# Window functions:
+- GROUP BY collapses rows into one row per group. A window function computes across related rows but keeps every row, adding a new column
+
+# Syntax:
+```
+function(...) OVER ( [PARTITION BY cols] [ORDER BY cols] [frame] )
+```
+
+
+EX:
+
+-- GROUP BY: 5 rows (one per categories)
+SELECT categories_id, ROUND(AVG(price), 2) FROM products GROUP BY categories_id;
+
+ categories_id |  round                                                                                                                                             
+---------------+---------
+               | 2453.58
+             1 | 1277.01
+             3 | 3652.96
+             2 | 6798.90
+(4 rows)
+
+
+
+-- window: 20 rows, each with its categories's average attached
+SELECT name, categories_id, price,
+       ROUND(AVG(price) OVER (PARTITION BY categories_id), 2) AS categories_avg
+FROM products;
+
+
+            name             | categories_id |  price  | categories_avg                                                                                             
+-----------------------------+---------------+---------+----------------
+ Phone Charger 20W           |             1 |  858.90 |        1277.01
+ wireless headphone          |             1 | 1518.90 |        1277.01
+ Wireless Mouse              |             1 | 1078.90 |        1277.01
+ USB-C Hub                   |             1 | 1629.45 |        1277.01
+ Laptop Stand                |             1 | 1298.90 |        1277.01
+ Noise Cancelling Headphones |             2 | 6798.90 |        6798.90
+ Gaming Headset              |             3 | 3199.00 |        3652.96
+ Webcam HD                   |             3 | 2618.90 |        3652.96
+ Webcam 4K                   |             3 | 4699.00 |        3652.96
+ Gaming Controller           |             3 | 3699.00 |        3652.96
+ Mechanical Keyboard         |             3 | 4048.90 |        3652.96
+ Wireless Mouses             |               | 6311.84 |        2453.58
+ demo item                   |               |  300.00 |        2453.58                                                                                             
+ Old Webcam v1               |               |  748.90 |        2453.58                                                                                             
+(14 rows) 
+
+
+-------------------------------------------------------------------------
+
+# IN:
+
+1=1 -> true
+1=2 -> false
+but, 1=(1, 2, 3) -> error | invalid syntax
+
+```
+select * from orders where status in ('delivered', 'placed');
+```
+ id | customer_id | ordered_at |  status                                                                                                                                                                
+----+-------------+------------+-----------
+  1 |           1 | 2026-09-01 | delivered
+  3 |           2 | 2026-09-05 | delivered
+  4 |           2 | 2026-10-02 | placed
+  6 |           4 | 2026-10-05 | delivered
+  7 |           4 | 2026-10-10 | placed
+  8 |           1 | 2026-10-12 | placed
+
+LLy for: 
+NOT IN -> work opposite
+
+```
+select * from orders where status not in ('delivered', 'placed');
+```
+ id | customer_id | ordered_at |  status                                                                                                                                                                
+----+-------------+------------+-----------
+  2 |           1 | 2026-09-20 | shipped
+  5 |           3 | 2026-09-12 | cancelled
+
+
+
+--------------------------------------------------------------------------
+
+# Connecting 3 Tables in PostgreSQL
+
+Example relationship:
+
+- `reviews.product_id` → `products.id`
+- `products.categories_id` → `categories.id`
+
+## 1. SELECT — Retrieve data
+
+```
+SELECT r.id, p.name, c.name AS category
+FROM reviews r
+JOIN products p ON p.id = r.product_id
+JOIN categories c ON c.id = p.categories_id
+WHERE c.name = 'Gaming';
+```
+
+Use `JOIN` to connect tables and `ON` to specify how their rows match.
+
+## 2. UPDATE — Update matching rows
+
+```
+UPDATE reviews r
+SET helpful_votes = r.helpful_votes + 1
+FROM products p
+JOIN categories c ON c.id = p.categories_id
+WHERE p.id = r.product_id
+  AND c.name = 'Gaming'
+RETURNING r.id, r.helpful_votes;
+```
+
+Important: Connect the `UPDATE` target table to the joined tables in `WHERE`. Otherwise, you might update unintended rows.
+
+## 3. DELETE — Delete matching rows
+
+```
+DELETE FROM reviews r
+USING products p
+JOIN categories c ON c.id = p.categories_id
+WHERE p.id = r.product_id
+  AND c.name = 'Gaming'
+RETURNING r.id, r.product_id;
+```
+
+- `DELETE FROM reviews` specifies which table's rows will be deleted.
+- `USING` supplies the other tables.
+- `WHERE` connects the tables and filters the rows to delete.
+- `RETURNING` shows the deleted rows.
+
+## Quick revision table
+
+| Operation | How to connect tables                                    |
+| --------- | -------------------------------------------------------- |
+| `SELECT`  | `FROM` + `JOIN ... ON`                                   |
+| `UPDATE`  | `UPDATE` + `FROM` + matching conditions in `WHERE`       |
+| `DELETE`  | `DELETE FROM` + `USING` + matching conditions in `WHERE` |
+
+Golden rule: Always connect the tables correctly and check your `WHERE` conditions before running an `UPDATE` or `DELETE`.
+
+
+ex: 
+
+update reviews r set helpful_votes = helpful_votes + 1 from products p join categories c on c.id = p.categories_id where r.product_id = p.id and c.name = 'Gaming';
+UPDATE 2
+insta_practice=# select * from reviews;
+ id | customer_id | product_id | rating |         body         | reviewed_on | verified_purchase | helpful_votes                                                                                        
+----+-------------+------------+--------+----------------------+-------------+-------------------+---------------
+  6 |           3 |         16 |    2.0 | Never arrived        | 2026-09-20  | f                 |             2
+ 10 |           5 |         12 |    4.0 | Bought from a friend | 2026-10-10  | f                 |             2
+ 14 |           3 |         37 |    4.0 | Decent webcam        | 2026-10-14  | f                 |             2
+ 16 |           1 |         12 |    4.0 | Update: still good   | 2026-10-15  | t                 |             2
+ 15 |           1 |         31 |    5.0 | Demo product review  | 2026-10-14  | t                 |             2
+  3 |           1 |         14 |    5.0 |                      | 2026-10-01  | t                 |             2
+  2 |           1 |         15 |    4.0 | Sturdy stand         | 2026-09-11  | t                 |             2
+ 11 |           2 |         12 |    4.0 | Works well           | 2026-10-11  | t                 |             2
+  5 |           2 |         18 |    3.0 | Charger gets warm    | 2026-09-16  | t                 |             2
+  4 |           2 |         17 |    5.0 | Best headphones      | 2026-09-15  | t                 |             2
+  8 |           4 |         30 |    3.0 |                      | 2026-10-09  | t                 |             2
+  7 |           4 |         13 |    4.0 | Nice keyboard        | 2026-10-08  | t                 |             2
+ 12 |           6 |         39 |    1.0 | Stopped working      | 2026-10-12  | f                 |             3
+  9 |           4 |         38 |    5.0 | Perfect controller   | 2026-10-09  | t                 |             3
+(14 rows)
+
+
+---------------------------------------------------------------
+

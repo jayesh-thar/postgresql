@@ -1,0 +1,90 @@
+`psql -U postgres -h localhost -p 5432 -d postgres`
+
+-U	user (role) name
+-h	host (where the server runs)
+-p	port (default 5432)
+-d	which database to connect to
+
+----------------------------------------------------------------------------------------------------
+
+You can also use a URI: psql "postgresql://postgres@localhost:5432/postgres"
+
+----------------------------------------------------------------------------------------------------
+
+`
+psql -U postgres -d insta_practice -f schema/01_products.sql
+psql -U postgres -d insta_practice -c "SELECT count(*) FROM products;"
+`
+
+-f runs a file 
+-c runs one command.
+
+----------------------------------------------------------------------------------------------------
+
+
+from pathlib import Path
+
+content = """PostgreSQL Password Setup (Windows)
+-----------------------------------
+Created: %APPDATA%\\postgresql\\pgpass.conf
+
+Entry format:
+localhost:5432:*:postgres:YOUR_PASSWORD
+
+Replace YOUR_PASSWORD with the PostgreSQL password.
+
+Purpose: Saves the password for matching local psql connections, so it usually
+doesn't prompt every time. Setup is one-time for this Windows user account.
+
+Connect:
+psql -U postgres -d insta_practice
+
+Run SQL file from PowerShell:
+psql -U postgres -d insta_practice -f ".\\schema\\01_products.sql"
+
+Note: Run the SQL-file command in PowerShell, not inside psql. The password
+file stores the password as plaintext; keep it private and out of Git.
+"""
+path = Path("/mnt/data/postgresql_pgpass_short_note.txt")
+path.write_text(content, encoding="utf-8")
+print(f"Created: {path}")
+
+
+------------------------------------------------------------------------------------------
+
+Run any SQL file from PowerShell:
+
+```
+psql -U postgres -d insta_practice -f ".\path\filename.sql"
+```
+Replace `path\filename.sql` with your SQL file's relative path.
+
+
+Example:
+
+```
+psql -U postgres -d insta_practice -f ".\schema\01_products.sql"
+```
+
+------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

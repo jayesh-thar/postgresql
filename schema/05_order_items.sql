@@ -1,0 +1,10 @@
+-- CREATE TABLE order_items (
+--     order_id    integer      NOT NULL,
+--     product_id  integer      NOT NULL,
+--     quantity    smallint     NOT NULL,
+--     unit_price  numeric(8,2) NOT NULL,
+--     CONSTRAINT pk_order_items PRIMARY KEY (order_id, product_id),
+--     CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products (id),
+--     CONSTRAINT ck_order_items_quantity CHECK (quantity > 0)
+-- );
