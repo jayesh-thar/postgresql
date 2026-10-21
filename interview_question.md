@@ -1108,3 +1108,44 @@ FROM products;
 - `COUNT(rating)` counts only non-NULL ratings.
 - `AVG(rating)` ignores NULL ratings.
 - `AVG(COALESCE(rating, 0))
+
+## Q51. What is view? How to create a view? Where is a view stored? Why do we use views?
+
+- A view in PostgreSQL is a virtual table created from a SQL query. It lets you save a query and use it like a table.
+
+Suppose you want to see only products costing more than 1000.
+```sql
+CREATE VIEW expensive_products AS
+SELECT name, price
+FROM products
+WHERE price > 1000;
+```
+
+Now use the view:
+
+```sql
+SELECT * FROM expensive_products;
+```
+
+OUTPUT:
+```
+    name     | price
+-------------+------
+ Keyboard    | 1200
+ Headphones  | 2000
+ Controller  | 2500
+```
+
+- Output is illustrative and depends on your actual data.
+
+Where is a view stored?
+- The view's definition (SQL query) is stored in the database. A regular view does not store the query's result rows separately; PostgreSQL runs the underlying query when you access the view.
+
+Why do we use views?
+- Reuse queries: Avoid writing the same complex query repeatedly.
+- Simplify queries: Access complex results using a simple SELECT.
+- Restrict access: With appropriate permissions, expose selected columns or rows instead of giving users direct access to the entire table.
+
+`Remember: A regular view stores the query definition, not a separate copy of the result data. A MATERIALIZED VIEW, in contrast, stores the query results.`
+
+
