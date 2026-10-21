@@ -1144,7 +1144,7 @@ Where is a view stored?
 Why do we use views?
 - Reuse queries: Avoid writing the same complex query repeatedly.
 - Simplify queries: Access complex results using a simple SELECT.
-- Restrict access: With appropriate permissions, expose selected columns or rows instead of giving users direct access to the entire table.
+- Restrict access: With appropriate permissions, expose selected columns or rows instead of giving users direct access to the entire table. (For example, create a view showing only employee names and departments, without exposing salary information. You must configure the appropriate permissions as well.)
 
 `Remember: A regular view stores the query definition, not a separate copy of the result data. A MATERIALIZED VIEW, in contrast, stores the query results.`
 
