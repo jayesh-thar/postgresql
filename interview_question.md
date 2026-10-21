@@ -902,6 +902,10 @@ Output:
 
 **Answer:**
 
+Main difference
+- IN → Checks whether a value matches a result in a list.
+- EXISTS → Checks whether at least one matching row exists.
+
 | `IN` | `EXISTS` |
 | --- | --- |
 | Checks whether a value belongs to a result set | Checks whether a matching row exists |
@@ -909,6 +913,65 @@ Output:
 | Useful for membership tests | Useful for existence tests |
 
 Both can often express the same requirement. The optimizer chooses a plan based on the query and data.
+
+Example: Find customers who have placed orders.
+Suppose the customers table contains:
+```
+ id | name
+----+-------
+  1 | Rahul
+  2 | Priya
+  3 | Amit
+```
+
+And the orders table contains:
+```
+ id | customer_id
+----+------------
+  1 | 1
+  2 | 3
+  3 | 1
+```
+
+1. Using IN
+```sql
+SELECT name
+FROM customers
+WHERE id IN (
+    SELECT customer_id
+    FROM orders
+);
+```
+
+Output:
+```
+ name
+-------
+ Rahul
+ Amit
+```
+
+
+2. Using EXISTS
+```
+SELECT c.name
+FROM customers c
+WHERE EXISTS (
+    SELECT 1
+    FROM orders o
+    WHERE o.customer_id = c.id
+);
+```
+
+Output:
+```
+ name
+-------
+ Rahul
+ Amit
+```
+
+- Both queries return the same result in this example. Performance depends on the query and data; neither is always faster.
 
 ## Q44. Why can `NOT IN` behave unexpectedly with NULL?
 
