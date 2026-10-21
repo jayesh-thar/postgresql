@@ -877,6 +877,27 @@ The subquery finds orders belonging to each customer. Customers with at least on
 
 Use `EXISTS` for questions such as "Does this customer have an order?" without needing to return order details.
 
+Example: Find customers who have placed at least one order.
+Assume these are the `customers` and `orders` tables.
+```sql
+SELECT c.name
+FROM customers c
+WHERE EXISTS (
+    SELECT 1
+    FROM orders o
+    WHERE o.customer_id = c.id
+);
+```
+
+Output:
+```Plain text
+   name
+----------
+ Rahul
+ Priya
+ Amit
+```
+
 ## Q43. What is the difference between `IN` and `EXISTS`?
 
 **Answer:**
