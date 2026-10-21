@@ -1148,4 +1148,275 @@ Why do we use views?
 
 `Remember: A regular view stores the query definition, not a separate copy of the result data. A MATERIALIZED VIEW, in contrast, stores the query results.`
 
+# PART 5: PRACTICAL SQL PROBLEMS
+
+## Q52. How do you find the second-highest salary?
+
+**Answer:**
+
+The second-highest salary is the highest salary that is lower than the maximum salary. Using `DISTINCT` ensures duplicate salaries are counted only once.
+
+**Example:**
+
+Assume the `employees` table contains:
+
+```text
+ id | name  | salary
+----+-------+-------
+  1 | Rahul | 50000
+  2 | Priya | 70000
+  3 | Amit  | 60000
+  4 | Neha  | 70000
+  5 | Raj   | 40000
+```
+
+**Query:**
+
+```sql
+SELECT DISTINCT salary
+FROM employees
+WHERE salary IS NOT NULL
+ORDER BY salary DESC
+OFFSET 1
+LIMIT 1;
+```
+
+**Output:**
+
+```text
+ salary
+--------
+ 60000
+```
+
+**Explanation:**
+
+1. `WHERE salary IS NOT NULL` excludes NULL salaries.
+2. `DISTINCT` removes duplicate salary values.
+3. `ORDER BY salary DESC` sorts salaries from highest to lowest.
+4. `OFFSET 1` skips the highest salary.
+5. `LIMIT 1` returns the next salary.
+
+**Alternative using a subquery:**
+
+```sql
+SELECT MAX(salary) AS second_highest_salary
+FROM employees
+WHERE salary < (
+    SELECT MAX(salary)
+    FROM employees
+);
+```
+
+This also returns `60000` for the example.
+
+**Important:** If all employees have the same salary, or there is only one distinct salary, the result is NULL for the aggregate query and no row for the `LIMIT` query.
+
+---
+
+## Q53. How do you find the highest-priced product in each category?
+
+**Answer:**
+
+Use `GROUP BY` with `MAX()` when you need only the highest price per category.
+
+**Example:**
+
+Assume the `products` table contains:
+
+```text
+ id | name       | categories_id | price
+----+------------+---------------+------
+  1 | Mouse      | 1             |  500
+  2 | Keyboard   | 1             | 1200
+  3 | Headphones | 2             | 2000
+  4 | Speakers   | 2             | 1500
+  5 | Controller | 3             | 2500
+```
+
+### Method 1: Highest price per category
+
+```sql
+SELECT categories_id, MAX(price) AS highest_price
+FROM products
+GROUP BY categories_id;
+```
+
+**Output:**
+
+```text
+ categories_id | highest_price
+---------------+--------------
+ 1             | 1200
+ 2             | 2000
+ 3             | 2500
+```
+
+This returns the highest price, but not the product name.
+
+### Method 2: Return the product name and highest price
+
+```sql
+SELECT p.categories_id, p.name, p.price
+FROM products p
+WHERE p.price = (
+    SELECT MAX(p2.price)
+    FROM products p2
+    WHERE p2.categories_id = p.categories_id
+);
+```
+
+**Output:**
+
+```text
+ categories_id | name       | price
+---------------+------------+------
+ 1             | Keyboard   | 1200
+ 2             | Headphones | 2000
+ 3             | Controller | 2500
+```
+
+**Explanation:**
+
+The subquery finds the maximum price for the current product's category. The outer query returns products whose price matches that maximum.
+
+**Important:** If multiple products tie for the highest price in a category, this query returns all tied products.
+
+---
+
+## Q54. How do you find duplicate records?
+
+**Answer:**
+
+Use `GROUP BY` with `HAVING COUNT(*) > 1` to find values that occur more than once.
+
+**Example:**
+
+Assume the `employees` table contains:
+
+```text
+ id | name  | email
+----+-------+------------------
+  1 | Rahul | rahul@example.com
+  2 | Priya | priya@example.com
+  3 | Amit  | rahul@example.com
+  4 | Neha  | neha@example.com
+  5 | Raj   | priya@example.com
+```
+
+### Find duplicate email addresses
+
+```sql
+SELECT email, COUNT(*) AS occurrences
+FROM employees
+GROUP BY email
+HAVING COUNT(*) > 1;
+```
+
+**Output:**
+
+```text
+ email              | occurrences
+--------------------+------------
+ rahul@example.com  | 2
+ priya@example.com  | 2
+```
+
+**Explanation:**
+
+1. `GROUP BY email` groups rows with the same email.
+2. `COUNT(*)` counts rows in each group.
+3. `HAVING COUNT(*) > 1` returns only groups that occur more than once.
+
+### Find the complete rows containing duplicate emails
+
+```sql
+SELECT *
+FROM employees
+WHERE email IN (
+    SELECT email
+    FROM employees
+    GROUP BY email
+    HAVING COUNT(*) > 1
+);
+```
+
+This returns every row with a duplicated, non-NULL email.
+
+**Important:** This identifies duplicates; it does not delete them. Also, `GROUP BY` places NULL email values into one group, so if you want to find duplicate non-NULL emails only, add `WHERE email IS NOT NULL` before `GROUP BY`.
+
+---
+
+## Q55. How do you find customers who have not placed any orders?
+
+**Answer:**
+
+Use `NOT EXISTS` to find customers without a matching row in the `orders` table.
+
+**Example:**
+
+Assume the `customers` table contains:
+
+```text
+ id | name
+----+-------
+  1 | Rahul
+  2 | Priya
+  3 | Amit
+  4 | Neha
+```
+
+And the `orders` table contains:
+
+```text
+ id | customer_id
+----+------------
+  1 | 1
+  2 | 3
+  3 | 1
+```
+
+**Query:**
+
+```sql
+SELECT c.id, c.name
+FROM customers c
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM orders o
+    WHERE o.customer_id = c.id
+);
+```
+
+**Output:**
+
+```text
+ id | name
+----+------
+  2 | Priya
+  4 | Neha
+```
+
+**Explanation:**
+
+- The subquery checks whether each customer has a matching order.
+- `EXISTS` would return TRUE when a matching order exists.
+- `NOT EXISTS` returns TRUE when no matching order exists.
+- Therefore, only customers without orders are returned.
+
+### Alternative using `LEFT JOIN`
+
+```sql
+SELECT c.id, c.name
+FROM customers c
+LEFT JOIN orders o
+    ON o.customer_id = c.id
+WHERE o.id IS NULL;
+```
+
+**Explanation:**
+
+`LEFT JOIN` keeps every customer, even when no order matches. For customers without an order, `o.id` is NULL, so `WHERE o.id IS NULL` selects them.
+
+**Interview tip:** `NOT EXISTS` is a clear and reliable choice for finding rows without matching records, including when the related table contains NULL values.
 
